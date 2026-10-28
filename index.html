@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>付け合わせ面付け</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 左に条件と品目の入力、右に台ごとの面割り結果。狭い画面では縦積み */
+:root{
+  --bg:#f3f4f2; --panel:#ffffff; --fg:#1b2125; --muted:#5d666c; --line:#d6dad8;
+  --accent:#0f5e78; --accent-ink:#ffffff; --soft:#e4eef1; --warn:#9a5a00; --good:#2f6b3a;
+  --f-ui:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#14191b; --panel:#1c2326; --fg:#e4e8e8; --muted:#9aa4a7; --line:#30393c;
+  --accent:#5fb3cc; --accent-ink:#0b1416; --soft:#1f3239; --warn:#e0a24a; --good:#7cc08a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#14191b; --panel:#1c2326; --fg:#e4e8e8; --muted:#9aa4a7; --line:#30393c;
+  --accent:#5fb3cc; --accent-ink:#0b1416; --soft:#1f3239; --warn:#e0a24a; --good:#7cc08a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-ui);font-size:14px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:2px solid var(--fg);padding-bottom:12px}
+h1{font-size:24px;font-weight:700;margin:0;letter-spacing:.02em;display:flex;align-items:center;gap:10px;text-wrap:balance}
+.reg{width:22px;height:22px;flex:none}
+header p{margin:0;color:var(--muted);font-size:13px;max-width:62ch}
+.grid{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:20px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+h2{font-size:15px;margin:0;font-weight:700;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+h2 small{font-weight:400;color:var(--muted);font-size:12px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:flex;flex-direction:column;gap:3px;min-width:0}
+.field label{font-size:12px;color:var(--muted)}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:6px 8px;width:100%;min-width:0}
+input[type=number]{font-family:var(--f-num);text-align:right}
+textarea{font-family:var(--f-num);font-size:12px;line-height:1.5;resize:vertical;min-height:220px;white-space:pre}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.calc{font-size:12px;color:var(--muted);font-family:var(--f-num)}
+.note{font-size:12px;color:var(--muted);margin:0}
+.tag{display:inline-block;font-size:11px;border:1px solid var(--warn);color:var(--warn);border-radius:3px;padding:0 5px;margin-left:4px;vertical-align:1px}
+button{font:inherit;cursor:pointer;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--fg);padding:7px 12px}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700;padding:10px 14px;font-size:15px}
+button.primary:disabled{opacity:.6;cursor:progress}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+details summary{cursor:pointer;font-size:13px;color:var(--muted)}
+details[open] summary{margin-bottom:10px}
+.sheetset{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 8px;align-items:center;font-size:12px}
+.sheetset span{color:var(--muted)}
+/* results */
+.results{display:flex;flex-direction:column;gap:20px;min-width:0}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+@media (max-width:640px){.summary{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--panel);padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat b{font-family:var(--f-num);font-weight:500;font-size:22px;font-variant-numeric:tabular-nums;line-height:1.2}
+.stat .sub{font-size:12px;color:var(--muted)}
+.stat.hl b{color:var(--accent)}
+.group-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:6px}
+.group-h h3{margin:0;font-size:16px}
+.group-h span{font-size:12px;color:var(--muted);font-family:var(--f-num)}
+.forms{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+@media (max-width:420px){.forms{grid-template-columns:1fr}}
+.form{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.form-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.form-h strong{font-size:15px}
+.form-h .r{font-family:var(--f-num);font-size:13px}
+.form-h .r em{font-style:normal;font-size:18px;font-weight:500}
+.sheet{width:100%;height:auto;display:block}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th,td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+th{font-weight:500;color:var(--muted);font-size:11px}
+td.nm,th.nm{text-align:left;white-space:normal;min-width:7em}
+td{font-family:var(--f-num)} td.nm{font-family:var(--f-ui)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:0}
+.over-hi{color:var(--warn)}
+.form-f{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-family:var(--f-num)}
+.empty{border:1px dashed var(--line);border-radius:6px;padding:28px;text-align:center;color:var(--muted)}
+.err{color:var(--warn);font-size:12px;margin:0;white-space:pre-line}
+.toast{font-size:12px;color:var(--good)}
+#csvbox{min-height:120px}
+@media (prefers-reduced-motion:no-preference){button{transition:border-color .15s}}
+</style>
+<style>[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1><svg class="reg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M12 1v22M1 12h22" stroke="currentColor" stroke-width="1.4"/></svg>付け合わせ面付け</h1>
+    </div>
+    <p>部数の違う複数のチラシを、版代と紙代の合計が最小になるよう台ごとに組み合わせます。不足は出しません。サイズの判型（A／B）ごとに別の台で組みます。</p>
+  </header>
+
+  <div class="grid">
+    <div class="panel" id="inputs">
+      <h2>品目<small id="parsed">—</small></h2>
+      <div class="field">
+        <label for="items">Excelから「品名・部数・サイズ」の3列を貼り付け（サイズ省略時はA4）</label>
+        <textarea id="items" spellcheck="false"></textarea>
+        <p class="err" id="parseErr" hidden></p>
+      </div>
+      <div class="row"><button type="button" id="sampleBtn">サンプル40種を入れる</button><button type="button" id="clearBtn">空にする</button></div>
+
+      <h2>コスト<small>1台・1通しあたり</small></h2>
+      <div class="fields">
+        <div class="field"><label for="plate">刷版単価（円/版）</label><input type="number" id="plate" value="3000" min="0" step="100"></div>
+        <div class="field"><label for="colors">色数</label>
+          <select id="colors"><option value="8">4/4（8版）</option><option value="4">4/0（4版）</option><option value="5">4/1（5版）</option><option value="2">1/1（2版）</option><option value="1">1/0（1版）</option></select></div>
+        <div class="field"><label for="setup">準備費（円/台）</label><input type="number" id="setup" value="10000" min="0" step="1000"></div>
+        <div class="field"><label for="spoil">予備紙（枚/台）</label><input type="number" id="spoil" value="200" min="0" step="10"></div>
+        <div class="field" style="grid-column:1/-1"><label for="sheetcost">紙代＋印刷代（円/通し）</label><input type="number" id="sheetcost" value="15" min="0" step="0.5"></div>
+      </div>
+      <p class="calc" id="costCalc"></p>
+      <p class="note">初期値は仮の値<span class="tag">要調整</span>です。自社の単価に置き換えてください。</p>
+
+      <details id="sheetDetails">
+        <summary>刷り本と面数の設定</summary>
+        <div class="sheetset">
+          <span></span><span>A判 → A全</span><span>B判 → 四六全</span>
+          <label for="aw">用紙 短辺</label><input type="number" id="aw" value="625"><input type="number" id="bw" value="788">
+          <label for="ah">用紙 長辺</label><input type="number" id="ah" value="880"><input type="number" id="bh" value="1091">
+          <label for="kuwae">クワエ+尻</label><input type="number" id="kuwae" value="17"><span class="calc">mm（長辺側）</span>
+          <label for="side">左右余白</label><input type="number" id="side" value="5"><span class="calc">mm（片側）</span>
+          <label for="bleed">塗り足し</label><input type="number" id="bleed" value="3"><span class="calc">mm</span>
+        </div>
+        <p class="note" id="slotInfo" style="margin-top:10px"></p>
+        <div class="fields" style="margin-top:6px">
+          <div class="field"><label for="slotOverride">面数を手動指定（空欄＝自動）</label><input type="number" id="slotOverride" min="1" placeholder="自動"></div>
+        </div>
+      </details>
+
+      <button type="button" class="primary" id="runBtn">最適な面付けを計算</button>
+      <p class="note">計算は1〜数秒。結果は近似解（焼きなまし法）で、理論下限との差も表示します。</p>
+    </div>
+
+    <div class="results" id="results">
+      <div class="empty">計算すると、ここに台ごとの面割りが出ます。</div>
+    </div>
+  </div>
+</div>
+
+<script type="text/plain" id="solverSrc">
+// 付け合わせ面付け最適化ソルバー（純JS）
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+// 1台分の評価：通し枚数Rと各品目の面数
+function evalForm(ds,S){
+  const n=ds.length; if(n===0) return null; if(n>S) return {R:Infinity};
+  let sum=0,maxd=0; for(const d of ds){sum+=d; if(d>maxd)maxd=d;}
+  let lo=Math.max(Math.ceil(sum/S),Math.ceil(maxd/(S-n+1)),1), hi=maxd;
+  const need=R=>{let c=0;for(const d of ds)c+=Math.ceil(d/R);return c;};
+  while(lo<hi){const m=(lo+hi)>>1; if(need(m)<=S)hi=m; else lo=m+1;}
+  return {R:lo};
+}
+function formDetail(idx,ds,S){
+  const {R}=evalForm(ds,S);
+  const a=ds.map(d=>Math.ceil(d/R));
+  let left=S-a.reduce((x,y)=>x+y,0);
+  // 余った面は部数の多い品目へ（空き面にしない）
+  const order=ds.map((d,k)=>k).sort((x,y)=>ds[y]-ds[x]);
+  let p=0; while(left>0){a[order[p%order.length]]++;left--;p++;}
+  return {R,items:idx.map((id,k)=>({id,d:ds[k],slots:a[k],made:a[k]*R,over:a[k]*R-ds[k]}))};
+}
+
+function solve(demands,S,cost,opt={}){
+  const n=demands.length;
+  const F=cost.fixed, v=cost.perSheet, sp=cost.spoil;
+  const formCost=list=>{if(list.length===0)return 0;const ds=list.map(i=>demands[i]);const r=evalForm(ds,S);return r.R===Infinity?1e18:F+v*(r.R+sp);};
+  // 初期解：降順に並べて連続区間DP
+  const order=demands.map((d,i)=>i).sort((a,b)=>demands[b]-demands[a]);
+  const dp=new Array(n+1).fill(Infinity), prev=new Array(n+1).fill(-1); dp[0]=0;
+  for(let j=1;j<=n;j++) for(let k=1;k<=Math.min(S,j);k++){
+    const c=dp[j-k]+formCost(order.slice(j-k,j)); if(c<dp[j]){dp[j]=c;prev[j]=j-k;}
+  }
+  let forms=[]; for(let j=n;j>0;j=prev[j]) forms.unshift(order.slice(prev[j],j));
+  const rng=mulberry32(opt.seed||12345);
+  const iters=opt.iters||60000, restarts=opt.restarts||4;
+  let best=forms.map(f=>f.slice()), bestCost=forms.reduce((s,f)=>s+formCost(f),0);
+  for(let r=0;r<restarts;r++){
+    let cur=best.map(f=>f.slice()); let fc=cur.map(formCost); let total=fc.reduce((a,b)=>a+b,0);
+    let T=F*0.5; const Tend=Math.max(1,v*1); const alpha=Math.pow(Tend/T,1/iters);
+    for(let it=0;it<iters;it++,T*=alpha){
+      if(cur.length===0)break;
+      const mv=rng();
+      if(mv<0.55){ // 移動
+        const a=Math.floor(rng()*cur.length); if(cur[a].length===0)continue;
+        let b=Math.floor(rng()*(cur.length+1)); if(b===a)continue;
+        if(b===cur.length){cur.push([]);fc.push(0);}
+        if(cur[b].length>=S){ if(cur[b].length===0){cur.pop();fc.pop();} continue;}
+        const k=Math.floor(rng()*cur[a].length); const item=cur[a][k];
+        const na=cur[a].slice(0,k).concat(cur[a].slice(k+1)); const nb=cur[b].concat([item]);
+        const ca=formCost(na), cb=formCost(nb); const delta=ca+cb-fc[a]-fc[b];
+        if(delta<=0||rng()<Math.exp(-delta/T)){cur[a]=na;cur[b]=nb;fc[a]=ca;fc[b]=cb;total+=delta;}
+        // 空の台を除去
+        for(let q=cur.length-1;q>=0;q--) if(cur[q].length===0){cur.splice(q,1);fc.splice(q,1);}
+      } else { // 交換
+        if(cur.length<2)continue;
+        const a=Math.floor(rng()*cur.length); let b=Math.floor(rng()*cur.length); if(a===b)continue;
+        const ka=Math.floor(rng()*cur[a].length), kb=Math.floor(rng()*cur[b].length);
+        const na=cur[a].slice(), nb=cur[b].slice(); const t=na[ka]; na[ka]=nb[kb]; nb[kb]=t;
+        const ca=formCost(na), cb=formCost(nb); const delta=ca+cb-fc[a]-fc[b];
+        if(delta<=0||rng()<Math.exp(-delta/T)){cur[a]=na;cur[b]=nb;fc[a]=ca;fc[b]=cb;total+=delta;}
+      }
+      if(total<bestCost-1e-6){bestCost=total;best=cur.map(f=>f.slice());}
+    }
+  }
+  const out=best.map(f=>{const det=formDetail(f,f.map(i=>demands[i]),S);det.cost=F+v*(det.R+sp);return det;}).sort((x,y)=>y.R-x.R);
+  const sumD=demands.reduce((a,b)=>a+b,0);
+  const lb=F*Math.ceil(n/S)+v*(Math.ceil(sumD/S)+sp*Math.ceil(n/S));
+  return {forms:out,total:bestCost,lowerBound:lb};
+}
+
+self.onmessage=e=>{const {demands,S,cost,opt}=e.data;self.postMessage(solve(demands,S,cost,opt));};
+</script>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const SIZES={A3:[297,420],A4:[210,297],A5:[148,210],A6:[105,148],B4:[257,364],B5:[182,257],B6:[128,182]};
+const yen=n=>Math.round(n).toLocaleString('ja-JP');
+const num=n=>Math.round(n).toLocaleString('ja-JP');
+
+// サンプル（架空）
+const SAMPLE_NAMES=['駅前店','北店','南店','東店','西店','中央店','本町店','新町店','港店','山手店'];
+function sampleText(){
+  let s=7; const r=()=>{s=(s*16807)%2147483647;return s/2147483647};
+  const lines=['品名\t部数\tサイズ'];
+  for(let i=0;i<40;i++){
+    const d=Math.round((2000+Math.pow(r(),2)*28000)/100)*100;
+    const size=(i===12||i===31)?'B4':'A4';
+    const nm=SAMPLE_NAMES[i%10]+' '+['11月号','歳末','年始','冬セール'][Math.floor(i/10)];
+    lines.push(`${nm}\t${d}\t${size}`);
+  }
+  return lines.join('\n');
+}
+
+function parseItems(text){
+  const items=[],errs=[];
+  text.split(/\r?\n/).forEach((line,li)=>{
+    if(!line.trim())return;
+    let cols=line.includes('\t')?line.split('\t'):line.split(',');
+    cols=cols.map(c=>c.trim());
+    const qty=parseInt((cols[1]||'').replace(/[,，]/g,''),10);
+    if(isNaN(qty)){ if(items.length===0&&li===0)return; errs.push(`${li+1}行目：部数が読めません`);return;}
+    if(qty<=0){errs.push(`${li+1}行目：部数が0以下です`);return;}
+    let size=(cols[2]||'A4').toUpperCase().replace(/\s/g,'');
+    if(!SIZES[size]){errs.push(`${li+1}行目：サイズ「${cols[2]}」は未対応（A3〜A6・B4〜B6）`);return;}
+    items.push({name:cols[0]||`品目${items.length+1}`,qty,size});
+  });
+  return {items,errs};
+}
+
+function costs(){
+  const plate=+$('plate').value||0, plates=+$('colors').value, setup=+$('setup').value||0;
+  return {fixed:plate*plates+setup, perSheet:+$('sheetcost').value||0, spoil:+$('spoil').value||0, plate, plates, setup};
+}
+function sheetFor(size){
+  const fam=size[0];
+  return fam==='A'?{name:'A全',w:+$('aw').value,h:+$('ah').value}:{name:'四六全',w:+$('bw').value,h:+$('bh').value};
+}
+// 面数計算：短辺側にクワエ＋尻、長辺側に左右余白
+function layout(size){
+  const sh=sheetFor(size), b=+$('bleed').value||0;
+  const uw=sh.w-(+$('kuwae').value||0), uh=sh.h-2*(+$('side').value||0);
+  const [fw,fh]=SIZES[size]; const pw=fw+2*b, ph=fh+2*b;
+  const o1={cols:Math.floor(uh/pw),rows:Math.floor(uw/ph),pw,ph,rot:false};
+  const o2={cols:Math.floor(uh/ph),rows:Math.floor(uw/pw),pw:ph,ph:pw,rot:true};
+  const best=(o2.cols*o2.rows>o1.cols*o1.rows)?o2:o1;
+  return {...best,slots:best.cols*best.rows,sheet:sh,uw,uh};
+}
+function updateInfo(){
+  const c=costs();
+  $('costCalc').textContent=`1台の固定費 ${yen(c.fixed)}円（${yen(c.plate)}円×${c.plates}版＋準備${yen(c.setup)}円）`;
+  const sizes=[...new Set(parseItems($('items').value).items.map(i=>i.size))];
+  $('slotInfo').textContent=sizes.length?sizes.map(s=>{const L=layout(s);return `${s}：${L.sheet.name}に${L.cols}×${L.rows}＝${L.slots}面`}).join('　'):'';
+  const p=parseItems($('items').value);
+  $('parsed').textContent=p.items.length?`${p.items.length}種・計${num(p.items.reduce((a,b)=>a+b.qty,0))}部`:'—';
+}
+
+let workerURL=null;
+function runSolve(demands,S,cost,opt){
+  return new Promise((res)=>{
+    try{
+      if(!workerURL) workerURL=URL.createObjectURL(new Blob([$('solverSrc').textContent],{type:'text/javascript'}));
+      const w=new Worker(workerURL);
+      w.onmessage=e=>{res(e.data);w.terminate();};
+      w.onerror=()=>{w.terminate();res(mainSolve(demands,S,cost,opt));};
+    }catch(e){res(mainSolve(demands,S,cost,opt));}
+  });
+}
+let mainSolveFn=null;
+function mainSolve(demands,S,cost,opt){
+  if(!mainSolveFn){ mainSolveFn=new Function($('solverSrc').textContent.split('self.onmessage')[0]+';return solve;')(); }
+  return mainSolveFn(demands,S,cost,opt);
+}
+
+const hue=i=>(i*137.508)%360;
+function sheetSVG(form,L,items){
+  const W=L.sheet.h, H=L.sheet.w; // 横長で描く（長辺が横）
+  const kh0=+$('kuwae').value||0; const ox=(W-L.cols*L.pw)/2, oy=Math.max(0,(H-kh0-L.rows*L.ph)/2);
+  const slots=[]; form.items.forEach(it=>{for(let k=0;k<it.slots;k++)slots.push(it.id)});
+  let g='';
+  slots.forEach((id,k)=>{
+    const c=k%L.cols, r=Math.floor(k/L.cols); const x=ox+c*L.pw, y=oy+r*L.ph; const h=hue(id);
+    g+=`<rect x="${x+1}" y="${y+1}" width="${L.pw-2}" height="${L.ph-2}" fill="hsl(${h} 65% 55%)" fill-opacity=".28" stroke="hsl(${h} 60% 45%)" stroke-width="2"/>`;
+    g+=`<text x="${x+L.pw/2}" y="${y+L.ph/2}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.min(L.pw,L.ph)*0.2}" font-family="IBM Plex Mono, monospace" fill="var(--fg)">${String(id+1).padStart(2,'0')}</text>`;
+  });
+  const kh=+$('kuwae').value;
+  return `<svg class="sheet" viewBox="-4 -4 ${W+8} ${H+8}" role="img" aria-label="面付け図"><rect x="0" y="0" width="${W}" height="${H}" fill="var(--bg)" stroke="var(--muted)" stroke-width="2"/><rect x="0" y="${H-kh}" width="${W}" height="${kh}" fill="var(--line)"/><text x="${W-8}" y="${H-3}" text-anchor="end" font-size="14" fill="var(--muted)" font-family="Zen Kaku Gothic New, sans-serif">クワエ</text>${g}</svg>`;
+}
+
+let lastCSV='';
+async function run(){
+  const p=parseItems($('items').value);
+  $('parseErr').hidden=!p.errs.length; $('parseErr').textContent=p.errs.join('\n');
+  if(!p.items.length){$('results').innerHTML='<div class="empty">品目が入っていません。品名・部数・サイズを貼り付けてください。</div>';return;}
+  const c=costs(); const btn=$('runBtn'); btn.disabled=true; btn.textContent='計算中…';
+  const groups={};
+  p.items.forEach((it,i)=>{const fam=it.size[0]+':'+it.size;(groups[fam]=groups[fam]||[]).push(i)});
+  const out=[]; let total=0, lb=0, naive=0, sheets=0, overs=0, nForms=0;
+  const csv=[['判型','台','通し枚数(予備除く)','No','品名','サイズ','部数','面数','刷上り','余り'].join(',')];
+  for(const key of Object.keys(groups)){
+    const idx=groups[key]; const size=key.split(':')[1]; const L=layout(size);
+    const S=+$('slotOverride').value||L.slots;
+    if(S<1){out.push(`<p class="err">${size}：面数が0です。用紙設定を確認してください。</p>`);continue;}
+    const demands=idx.map(i=>p.items[i].qty);
+    const best=[]; // 複数シードで一番良いもの
+    const runs=await Promise.all([1,2,3].map(seed=>runSolve(demands,S,c,{iters:150000,restarts:4,seed})));
+    const res=runs.reduce((a,b)=>b.total<a.total?b:a);
+    res.forms.forEach(f=>f.items.forEach(it=>it.id=idx[it.id]));
+    total+=res.total; lb+=res.lowerBound; nForms+=res.forms.length;
+    demands.forEach(d=>{naive+=c.fixed+c.perSheet*(Math.ceil(d/S)+c.spoil)});
+    let cards='';
+    res.forms.forEach((f,fi)=>{
+      sheets+=f.R+c.spoil; const fo=f.items.reduce((a,b)=>a+b.over,0); overs+=fo;
+      const rows=f.items.slice().sort((a,b)=>b.slots-a.slots||b.d-a.d).map(it=>{
+        const P=p.items[it.id]; const rate=it.over/it.d;
+        csv.push([L.sheet.name,fi+1,f.R,it.id+1,`"${P.name.replace(/"/g,'""')}"`,P.size,it.d,it.slots,it.made,it.over].join(','));
+        return `<tr><td class="nm"><span class="sw" style="background:hsl(${hue(it.id)} 65% 55%)"></span>${String(it.id+1).padStart(2,'0')} ${esc(P.name)}</td><td>${num(it.d)}</td><td>${it.slots}</td><td>${num(it.made)}</td><td class="${rate>0.15?'over-hi':''}">+${num(it.over)}</td></tr>`;
+      }).join('');
+      cards+=`<article class="form"><div class="form-h"><strong>${size} 第${fi+1}台</strong><span class="r">通し <em>${num(f.R)}</em> 枚</span></div>${sheetSVG(f,{...L,cols:L.cols,rows:L.rows},p.items)}<div class="tbl-wrap"><table><thead><tr><th class="nm">品名</th><th>部数</th><th>面数</th><th>刷上り</th><th>余り</th></tr></thead><tbody>${rows}</tbody></table></div><div class="form-f"><span>予備紙込み ${num(f.R+c.spoil)}枚</span><span>${yen(f.cost)}円</span></div></article>`;
+    });
+    out.push(`<section style="display:flex;flex-direction:column;gap:12px"><div class="group-h"><h3>${size}（${L.sheet.name}・${S}面付け）</h3><span>${idx.length}種 → ${res.forms.length}台　${yen(res.total)}円</span></div><div class="forms">${cards}</div></section>`);
+  }
+  const totalQty=p.items.reduce((a,b)=>a+b.qty,0);
+  const saving=naive-total;
+  const summary=`<div class="summary">
+    <div class="stat hl"><span class="lbl">総コスト</span><b>${yen(total)}円</b><span class="sub">1種ずつ単独なら ${yen(naive)}円</span></div>
+    <div class="stat"><span class="lbl">台数</span><b>${nForms}台</b><span class="sub">${p.items.length}種を付け合わせ</span></div>
+    <div class="stat"><span class="lbl">通し枚数</span><b>${num(sheets)}</b><span class="sub">予備紙込み</span></div>
+    <div class="stat"><span class="lbl">余り部数</span><b>${num(overs)}</b><span class="sub">必要部数の ${(overs/totalQty*100).toFixed(1)}%</span></div>
+  </div>
+  <p class="note">単独刷りより <strong>${yen(saving)}円</strong> 安くなります。理論下限（${yen(lb)}円）との差は ${((total/lb-1)*100).toFixed(1)}%。下限は「余りゼロ・最少台数」の到達不能な値なので、実際の最適解はこの間にあります。</p>`;
+  lastCSV=csv.join('\n');
+  $('results').innerHTML=summary+out.join('')+`<section class="panel"><h2>CSV<small>Excelに貼れます</small></h2><div class="row"><button type="button" id="copyBtn">CSVをコピー</button><span class="toast" id="copyMsg" hidden>コピーしました</span></div><textarea id="csvbox" readonly></textarea></section>`;
+  $('csvbox').value=lastCSV;
+  $('copyBtn').onclick=()=>{
+    const ok=()=>{$('copyMsg').hidden=false;setTimeout(()=>$('copyMsg').hidden=true,1800)};
+    const fb=()=>{$('csvbox').select();$('copyMsg').textContent='選択しました。Ctrl+Cでコピーしてください';ok();};
+    try{navigator.clipboard.writeText(lastCSV).then(()=>{$('copyMsg').textContent='コピーしました';ok()},fb)}catch(e){fb()}
+  };
+  btn.disabled=false; btn.textContent='最適な面付けを計算';
+}
+function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+$('items').value=sampleText();
+['items','plate','colors','setup','sheetcost','spoil','aw','ah','bw','bh','kuwae','side','bleed'].forEach(id=>$(id).addEventListener('input',updateInfo));
+$('sampleBtn').onclick=()=>{$('items').value=sampleText();updateInfo();};
+$('clearBtn').onclick=()=>{$('items').value='';updateInfo();};
+$('runBtn').onclick=run;
+updateInfo(); run();
+})();
+</script>
+
+</body>
+</html>
